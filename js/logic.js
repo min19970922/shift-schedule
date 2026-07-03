@@ -1,13 +1,5 @@
 /**
- * 智慧護理排班專案 - 核心業務邏輯 (完整無刪節 - 雙對連休保障、最少連上班 4 天與嚴格限制版)
- * 整合規則：
- * 1. 跨月銜接 (處理 prevShifts 銜接前月班別)
- * 2. 手動目標嚴格達成 (手動輸入為第一優先級，輸入幾天排幾天)
- * 3. 剩餘人力填補白班：多餘人力優先補白班，小大夜僅滿足目標天數，不多排人力
- * 4. 預休湊對連休：偵測孤立預休，優先補上一天湊成連休，杜絕碎班
- * 5. 雙對連休保障：每人每月剛好兩次連休(共4天)，兩次間隔 12-15 天
- * 6. 全局嚴格規則：禁止連上班超過 5 天，且最少連上 4 天 (杜絕 1-3 天碎班)
- * 7. 假日傾向休息：平日上班加分，引導人力貢獻於平日
+ * 智慧護理排班專案 - 核心業務邏輯 (已抽離 Excel 處理邏輯)
  */
 
 // --- 基礎工具函數 ---
@@ -142,7 +134,7 @@ function getDailyOffCount(dayIndex) {
 // --- 核心計算邏輯 ---
 
 /**
- * 計算全月統計數據 (供儀表板使用)
+ * 計算全月統計數據
  */
 window.calculateMonthStats = () => {
   let totalNeeded = { 日: 0, 小夜: 0, 大夜: 0 };
@@ -204,7 +196,6 @@ window.runAutofill = () => {
       assignMandatoryDoubleRestPairs();
 
       // 3. 【第一優先級】達成手動輸入的目標天數
-      // 這邊排完會標記為 manualEdits，確保重要目標(如小夜17)被固定
       fillStrictTargets();
 
       // 4. 逐日排班 (補齊每日基本人力需求)
@@ -238,7 +229,7 @@ window.runAutofill = () => {
         });
       }
 
-      // 5. 後端修復與多餘人力填補 (此處會極度傾向填補白班)
+      // 5. 後端修復與多餘人力填補
       enforceMinimumWorkStreak();
       fillUnderworked();
 
@@ -271,7 +262,6 @@ function getSortedCandidates(d, shiftType) {
       const userTarget = parseInt(s.targets[tKey]);
       const curShiftCount = s.shifts.filter((x) => x === shiftType).length;
 
-      // 如果有設定目標，且已經達標，就不再多排 (達成輸入幾天排幾天)
       if (s._manualLimit[tKey] && curShiftCount >= userTarget) return null;
       if (userTarget === 0) return null;
 
@@ -301,7 +291,7 @@ function getSortedCandidates(d, shiftType) {
         window.currentMonth,
         d + 1
       );
-      if (!isWeekend) score += 500000000; // 平日上班優先得分
+      if (!isWeekend) score += 500000000;
 
       if (shiftType === "日") score += 3000000000;
       if (s._manualLimit[tKey] && curShiftCount < userTarget)
@@ -321,7 +311,7 @@ function getSortedCandidates(d, shiftType) {
 }
 
 /**
- * 分配雙對連休 (包含預休自動湊對)
+ * 分配雙對連休
  */
 function assignMandatoryDoubleRestPairs() {
   window.staffData.forEach((staff) => {
@@ -342,7 +332,6 @@ function assignMandatoryDoubleRestPairs() {
     const getCurOffCount = () =>
       staff.shifts.filter((sh) => sh === "休").length;
 
-    // 優先：讓單天預休湊對
     for (let i = 0; i < window.currentMonthDays; i++) {
       if (staff.shifts[i] === "休") {
         const hasPrevOff = i > 0 && staff.shifts[i - 1] === "休";
@@ -369,7 +358,6 @@ function assignMandatoryDoubleRestPairs() {
       if (getPairsCount() >= 2) break;
     }
 
-    // 次優先：補齊兩對連休
     let retry = 0;
     while (getPairsCount() < 2 && retry < 20) {
       retry++;
@@ -411,10 +399,6 @@ function canAssignPair(staff, d) {
   );
 }
 
-/**
- * 核心輔助：嘗試為特定人員在特定日期填入班別
- * 改動：大幅強化白班(日)優先級，嚴格遵守輸入幾天排幾天的原則
- */
 function tryFillDay(s, d, shiftTypes) {
   const counts = {
     日: s.shifts.filter((x) => x === "日").length,
@@ -422,7 +406,6 @@ function tryFillDay(s, d, shiftTypes) {
     大夜: s.shifts.filter((x) => x === "大夜").length,
   };
 
-  // 建立排序後的班別列表：白班絕對優先，其餘依照目前計數排序
   const sortedShifts = [...shiftTypes].sort((a, b) => {
     if (a === "日") return -1;
     if (b === "日") return 1;
@@ -432,18 +415,15 @@ function tryFillDay(s, d, shiftTypes) {
   for (let type of sortedShifts) {
     const tKey = type === "日" ? "day" : type === "小夜" ? "evening" : "night";
 
-    // 如果有手動輸入目標，嚴格禁止超過目標 (輸入幾天就排幾天)
     if (
       s._manualLimit[tKey] &&
       s.shifts.filter((x) => x === type).length >= parseInt(s.targets[tKey])
     )
       continue;
 
-    // 全局規則檢查
     if (checkTotalStreak(s, d, type) > 5) continue;
     if (checkFlexViolation(s, d, type)) continue;
 
-    // 班別銜接合法性
     if (
       isAllowed(getShift(s, d - 1), type) &&
       (d === window.currentMonthDays - 1 || isAllowed(type, s.shifts[d + 1]))
@@ -495,7 +475,6 @@ function enforceMinimumWorkStreak() {
         getStreak(s, d) > 0 &&
         getStreak(s, d) < 4
       ) {
-        // 在填補最短連班限制時，也是優先嘗試日班
         if (!s.manualEdits[d]) tryFillDay(s, d, ["日", "小夜", "大夜"]);
       }
     }
@@ -504,7 +483,6 @@ function enforceMinimumWorkStreak() {
 
 /**
  * 補齊上班天數 (填補剩餘人力)
- * 改動：確保所有「多餘人力」(為了補足月休目標而產生的天數) 全部流向白班
  */
 function fillUnderworked() {
   window.staffData.forEach((s) => {
@@ -512,7 +490,6 @@ function fillUnderworked() {
     const targetWork = window.currentMonthDays - (parseInt(s.targets.off) || 8);
     let retry = 0;
 
-    // 優先以「日班」填滿所有天數
     while (retry < 20) {
       let curWork = s.shifts.filter((x) => x !== "休" && x !== "待定").length;
       if (curWork >= targetWork) break;
@@ -520,7 +497,6 @@ function fillUnderworked() {
       for (let d = 0; d < window.currentMonthDays; d++) {
         if (curWork >= targetWork) break;
         if (s.shifts[d] === "待定" && !s.manualEdits[d]) {
-          // 只嘗試填日班
           if (tryFillDay(s, d, ["日"])) {
             curWork++;
             filled = true;
@@ -531,7 +507,6 @@ function fillUnderworked() {
       retry++;
     }
 
-    // 如果日班因為規則衝突(如禁連6)排不進去，但天數仍不足，最後才嘗試排小大夜
     let curWorkFinal = s.shifts.filter(
       (x) => x !== "休" && x !== "待定"
     ).length;
@@ -546,13 +521,23 @@ function fillUnderworked() {
       }
     }
 
-    // 最後將所有剩餘待定轉為休息
     for (let d = 0; d < window.currentMonthDays; d++)
       if (s.shifts[d] === "待定") s.shifts[d] = "休";
   });
 }
 
-// --- 全域互動與 Excel 函式 ---
+// --- 全域互動與對接 ExcelUtils 的橋樑函式 ---
+
+/**
+ * 轉接調用獨立出來的 Excel 工具
+ */
+window.exportExcel = () => {
+  ExcelUtils.exportExcel();
+};
+
+window.importExcel = () => {
+  ExcelUtils.importExcel();
+};
 
 window.clearSchedule = () => {
   if (!confirm("確定清除全月班表？")) return;
@@ -570,113 +555,27 @@ window.clearSchedule = () => {
   );
 };
 
-window.toggleLock = (id) => {
-  if (!window.staffData) return;
-  const staff = window.staffData.find((s) => s.id === id);
-  if (staff) {
-    staff.isLocked = !staff.isLocked;
-    renderTable();
-    saveScheduleData(
-      window.currentYear,
-      window.currentMonth,
-      window.staffData,
-      window.dailyMins
-    );
-  }
-};
-window.lockStaff = window.toggleLock;
+window.toggleLock = (index) => {
+  if (!window.staffData || !window.staffData[index]) return;
 
-window.exportExcel = () => {
-  const wb = XLSX.utils.book_new();
-  const header = [
-    "姓名",
-    "白班目標",
-    "小夜目標",
-    "大夜目標",
-    "休假目標",
-    "預休日期",
-  ];
-  for (let i = 1; i <= window.currentMonthDays; i++) header.push(`${i}號`);
-  const dataRows = window.staffData.map((s) => [
-    s.name,
-    s.targets.day,
-    s.targets.evening,
-    s.targets.night,
-    s.targets.off,
-    (s.preRestDays || []).join(", "),
-    ...s.shifts,
-  ]);
-  const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-  XLSX.utils.book_append_sheet(wb, ws, "排班表");
-  XLSX.writeFile(
-    wb,
-    `護理排班_${window.currentYear}_${window.currentMonth}.xlsx`
+  const staff = window.staffData[index];
+  staff.isLocked = !staff.isLocked;
+
+  if (staff.isLocked) {
+    staff.manualEdits.fill(true);
+  } else {
+    staff.manualEdits.fill(false);
+  }
+
+  renderTable();
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
   );
 };
-
-window.importExcel = () => {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".xlsx, .xls";
-  input.onchange = (e) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const data = new Uint8Array(event.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
-      const rows = XLSX.utils.sheet_to_json(
-        workbook.Sheets[workbook.SheetNames[0]],
-        { header: 1 }
-      );
-      if (rows.length < 2) return showMsg("格式錯誤");
-      const newStaff = [];
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!r[0]) continue;
-        const shifts = [];
-        for (let d = 0; d < window.currentMonthDays; d++) {
-          let v = r[d + 6] || "休";
-          if (v === "白" || v === "日") v = "日";
-          if (v === "小") v = "小夜";
-          if (v === "大") v = "大夜";
-          shifts.push(v);
-        }
-        const preRestStr = r[5] ? String(r[5]) : "";
-        const preRestDays = preRestStr
-          ? preRestStr
-              .split(/[,,， ]/)
-              .map((n) => parseInt(n.trim()))
-              .filter((n) => !isNaN(n))
-          : [];
-        newStaff.push({
-          id: `imp_${Date.now()}_${i}`,
-          name: r[0],
-          targets: {
-            day: r[1] || "",
-            evening: r[2] || "",
-            night: r[3] || "",
-            off: r[4] || 8,
-          },
-          shifts,
-          preRestDays,
-          prevShifts: new Array(PREV_DAYS_COUNT).fill("休"),
-          manualEdits: new Array(window.currentMonthDays).fill(true),
-          isLocked: false,
-        });
-      }
-      window.staffData = newStaff;
-      renderTable();
-      saveScheduleData(
-        window.currentYear,
-        window.currentMonth,
-        window.staffData,
-        window.dailyMins
-      );
-    };
-    reader.readAsArrayBuffer(file);
-  };
-  input.click();
-};
+window.lockStaff = window.toggleLock;
 
 window.importLastMonthExcel = () => {
   let lastY = window.currentYear,

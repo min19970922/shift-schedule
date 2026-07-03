@@ -42,10 +42,12 @@ async function initApp() {
       subscribeToSchedule(window.currentYear, window.currentMonth, (data) => {
         if (data) {
           window.staffData = data.staffData;
+          // 確保同步更新全域的人力需求設定
           window.dailyMins = data.dailyMins || deepCopy(INITIAL_DAILY_MINS);
         } else {
-          // 若無資料，建立預設人員
+          // 若無資料，建立預設人員並還原預設人力需求
           window.staffData = [];
+          window.dailyMins = deepCopy(INITIAL_DAILY_MINS);
           for (let i = 0; i < 5; i++) window.addStaff();
         }
         renderDailyMinsInputs();
@@ -57,15 +59,17 @@ async function initApp() {
     mIn.onchange = handleDateChange;
   }
 
-  // 2. 初始化本地連線 (修正處：改為呼叫 initLocalConnection)
+  // 2. 初始化本地連線
   await initLocalConnection((user) => {
     // 初始化成功後，執行第一次資料載入
     subscribeToSchedule(window.currentYear, window.currentMonth, (data) => {
       if (data) {
         window.staffData = data.staffData;
+        // 【修正】網頁初次打開時，必須把儲存的人力需求倒回全域變數中
         window.dailyMins = data.dailyMins || deepCopy(INITIAL_DAILY_MINS);
       } else {
-        // 若完全沒資料，初始化預設名單
+        // 若完全沒資料，初始化預設名單與需求
+        window.dailyMins = deepCopy(INITIAL_DAILY_MINS);
         if (window.staffData.length === 0) {
           for (let i = 0; i < 5; i++) window.addStaff();
         }
@@ -74,12 +78,7 @@ async function initApp() {
       renderTable();
     });
   });
-
-  // 3. 初始渲染
-  renderDailyMinsInputs();
-  renderTable();
 }
-
 // 監聽視窗載入事件
 window.onload = initApp;
 
