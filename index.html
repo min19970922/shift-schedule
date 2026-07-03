@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>智慧護理排班表 v6.0 - 純本機版</title>
+
+    <!-- Library -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Style -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body class="p-4 bg-slate-50">
+    <div class="max-w-[1600px] mx-auto space-y-3">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div class="lg:col-span-3 main-card">
+          <div class="flex flex-col gap-2">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-1">
+                <span class="font-bold text-indigo-700 text-sm">排班 v6.0</span>
+                <div class="flex items-center bg-gray-100 rounded px-1">
+                  <input
+                    id="year-input"
+                    type="number"
+                    class="w-16 bg-transparent text-center font-bold text-sm p-0.5 outline-none"
+                  />
+                  <span class="text-xs text-gray-400">/</span>
+                  <input
+                    id="month-input"
+                    type="number"
+                    min="1"
+                    max="12"
+                    class="w-12 bg-transparent text-center font-bold text-sm p-0.5 outline-none"
+                  />
+                </div>
+              </div>
+              <!-- 補回：匯入上月按鈕 -->
+              <button
+                onclick="window.importLastMonthExcel()"
+                class="control-button btn-info text-[10px]"
+                title="匯入上月資料參考"
+              >
+                上月資料
+              </button>
+            </div>
+            <div class="flex gap-1">
+              <button
+                onclick="window.runAutofill()"
+                class="control-button btn-primary flex-1 font-bold"
+              >
+                自動排班
+              </button>
+              <button
+                onclick="window.clearSchedule()"
+                class="control-button btn-danger flex-1"
+              >
+                清除
+              </button>
+              <button
+                onclick="window.commitAndClearRedFrames()"
+                class="control-button btn-success flex-1"
+              >
+                鎖定/確認
+              </button>
+            </div>
+            <div class="flex gap-1">
+              <!-- 補回：匯入按鈕 -->
+              <button
+                onclick="window.importExcel()"
+                class="control-button btn-dark flex-1 text-[10px]"
+              >
+                匯入
+              </button>
+              <button
+                onclick="window.exportExcel()"
+                class="control-button btn-dark flex-1 text-[10px]"
+              >
+                匯出
+              </button>
+              <button
+                onclick="window.downloadImage(event)"
+                class="control-button btn-action flex-1 text-[10px]"
+              >
+                截圖
+              </button>
+              <button
+                onclick="window.addStaff()"
+                class="control-button btn-secondary flex-1 text-[10px]"
+              >
+                +人員
+              </button>
+            </div>
+          </div>
+          <div
+            id="status-msg"
+            class="text-xs text-indigo-500 font-bold h-4 mt-1 text-center"
+          ></div>
+        </div>
+
+        <div
+          class="lg:col-span-5 main-card bg-indigo-50 border-indigo-100 flex flex-col justify-center"
+        >
+          <h3 class="text-sm font-bold text-indigo-800 mb-1">月目標達成率</h3>
+          <div id="total-stats-container" class="flex gap-2 w-full"></div>
+        </div>
+
+        <div class="lg:col-span-4 main-card">
+          <h3 class="text-xs font-bold text-gray-500 mb-2">每日人力需求設定</h3>
+          <div id="daily-mins-inputs" class="grid grid-cols-2 gap-2"></div>
+        </div>
+      </div>
+
+      <div class="main-card table-container p-0 shadow-lg mt-2">
+        <table class="w-full border-collapse">
+          <thead>
+            <tr
+              id="schedule-head-row"
+              class="bg-gray-50 border-b border-gray-200"
+            ></tr>
+          </thead>
+          <tbody id="schedule-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 載入模組 -->
+    <script src="js/constants.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/logic.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
