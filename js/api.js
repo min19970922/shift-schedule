@@ -17,10 +17,12 @@ async function initLocalConnection(onReady) {
 }
 
 /**
- * 儲存排班資料到 localStorage
+ * 儲存排班資料到 localStorage (加入地點)
  */
 function saveScheduleData(year, month, staffData, dailyMins, silent = true) {
-  const key = `${STORAGE_PREFIX}${year}_${month}`;
+  // 💡 關鍵：金鑰加入 currentLocation
+  const loc = window.currentLocation || "預設地點";
+  const key = `${STORAGE_PREFIX}${loc}_${year}_${month}`;
   try {
     const dataToSave = {
       staffData: JSON.stringify(staffData),
@@ -29,7 +31,7 @@ function saveScheduleData(year, month, staffData, dailyMins, silent = true) {
     };
     localStorage.setItem(key, JSON.stringify(dataToSave));
 
-    if (!silent) showMsg("本地儲存成功");
+    if (!silent) showMsg(`[${loc}] 本地儲存成功`);
   } catch (e) {
     console.error("本地儲存失敗:", e);
     showMsg("儲存失敗：瀏覽器空間可能已滿");
@@ -37,11 +39,11 @@ function saveScheduleData(year, month, staffData, dailyMins, silent = true) {
 }
 
 /**
- * 讀取/監聽本地資料
- * 說明：在純本機模式下，我們直接回傳現有資料。
+ * 讀取/監聽本地資料 (加入地點)
  */
 function subscribeToSchedule(year, month, onUpdate) {
-  const key = `${STORAGE_PREFIX}${year}_${month}`;
+  const loc = window.currentLocation || "預設地點";
+  const key = `${STORAGE_PREFIX}${loc}_${year}_${month}`;
   const rawData = localStorage.getItem(key);
 
   if (rawData) {
@@ -56,7 +58,6 @@ function subscribeToSchedule(year, month, onUpdate) {
       onUpdate(null);
     }
   } else {
-    // 若無資料，回傳 null 讓主程式初始化
     onUpdate(null);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * 智慧護理排班專案 - 核心業務邏輯 (已抽離 Excel 處理邏輯)
+ * 智慧護理排班專案 - 核心業務邏輯 (完整無刪節 - 調整排班順序與碎班彈性優化版)
  */
 
 // --- 基礎工具函數 ---
@@ -115,6 +115,7 @@ function getForwardAvailableSpace(staff, dayIndex) {
 
 /**
  * 檢查班別銜接 (大小不可接日，大不可接小)
+ * 💡 日班(08-16)接隔日大夜(00-08)中間隔32小時，此處合法放行
  */
 function isAllowed(prevShift, nextShift) {
   if (prevShift === "大夜" && (nextShift === "日" || nextShift === "小夜"))
@@ -158,14 +159,14 @@ window.calculateMonthStats = () => {
 window.runAutofill = () => {
   const buttons = document.querySelectorAll("button");
   buttons.forEach((b) => (b.disabled = true));
-  showMsg("執行智慧排班：優先滿足手動目標天數，並將剩餘人力導入白班...");
+  showMsg("執行智慧排班：優先滿足夜班基本需求，剩餘多餘人力導入白班...");
 
   setTimeout(() => {
     try {
       // 1. 初始化
       window.staffData.forEach((s) => {
         if (s.isLocked) return;
-        const offT = parseInt(s.targets.off) || 8;
+        const offT = parseInt(s.targets.off) || 10;
 
         s._manualLimit = {
           day: s.targets.day !== "" && s.targets.day !== undefined,
@@ -207,7 +208,9 @@ window.runAutofill = () => {
         )
           ? "weekend"
           : "weekday";
-        const shiftOrder = ["日", "大夜", "小夜"];
+
+        // 💡 優化：排班順序全面調整為 大夜 -> 小夜 -> 日班
+        const shiftOrder = ["大夜", "小夜", "日"];
 
         shiftOrder.forEach((shiftType) => {
           let needed = window.dailyMins[type][shiftType];
@@ -234,7 +237,7 @@ window.runAutofill = () => {
       fillUnderworked();
 
       renderTable();
-      showMsg("排班成功！已達成手動目標，多餘人力已導入白班。");
+      showMsg("排班成功！已優先滿足大夜與小夜基本坑，多餘人力已導入白班。");
     } catch (err) {
       console.error(err);
       showMsg("排班錯誤：" + err.message);
@@ -262,8 +265,11 @@ function getSortedCandidates(d, shiftType) {
       const userTarget = parseInt(s.targets[tKey]);
       const curShiftCount = s.shifts.filter((x) => x === shiftType).length;
 
+      // 1. 如果手動限制該班別為 0 天，不管是哪一種班，都絕對不允許排入
+      if (s._manualLimit[tKey] && userTarget === 0) return null;
+
+      // 2. 如果手動限制大於 0 天，且目前排的數量已經達到或超過目標，就不再排
       if (s._manualLimit[tKey] && curShiftCount >= userTarget) return null;
-      if (userTarget === 0) return null;
 
       if (checkTotalStreak(s, d, shiftType) > 5) return null;
       if (checkFlexViolation(s, d, shiftType)) return null;
@@ -271,37 +277,43 @@ function getSortedCandidates(d, shiftType) {
       const prevShift = getShift(s, d - 1);
       if (!isAllowed(prevShift, shiftType)) return null;
 
+      let score = 0;
       let backWork = getStreak(s, d);
+
+      // 💡 彈性修正：不再用 null 硬性封死少於 4 天的待定空間，改用「碎班懲罰分」
       if (backWork === 0) {
         const space = getForwardAvailableSpace(s, d);
-        if (space < 4 && d < window.currentMonthDays - 3) return null;
+        if (space < 3 && d < window.currentMonthDays - 2) {
+          score -= 2000000000; // 空間嚴重不足（連 1-2 天碎班），扣大分
+        }
       }
 
-      let score = 0;
       const offT = parseInt(s.targets.off) || 8;
       const targetWork = window.currentMonthDays - offT;
       const currentWork = s.shifts.filter(
         (x) => x !== "待定" && x !== "休"
       ).length;
 
-      if (backWork > 0 && backWork < 4) score += 5000000000;
+      // 延續上班的優先加分（傾向湊成 3-5 天的完整區間）
+      if (backWork > 0 && backWork < 5) score += 5000000000;
 
       const isWeekend = isWeekendDay(
         window.currentYear,
         window.currentMonth,
         d + 1
       );
-      if (!isWeekend) score += 500000000;
+      if (!isWeekend) score += 50000000;
 
-      if (shiftType === "日") score += 3000000000;
-      if (s._manualLimit[tKey] && curShiftCount < userTarget)
+      // 💡 評分權重微調：配合大夜小夜優先的策略
+      if (shiftType === "大夜") score += 4000000000;
+      if (shiftType === "小夜") score += 3500000000;
+      if (shiftType === "日") score += 1000000000;
+
+      if (s._manualLimit[tKey] && curShiftCount < targetVal)
         score += 10000000000;
       if (currentWork < targetWork)
         score += (targetWork - currentWork) * 10000000;
 
-      if (s.isFullyFlexible) {
-        if (shiftType === "日") score += 2000000000;
-      }
       if (prevShift === "休") score += 50000;
       score += Math.random() * 500;
       return { idx, score };
@@ -316,7 +328,7 @@ function getSortedCandidates(d, shiftType) {
 function assignMandatoryDoubleRestPairs() {
   window.staffData.forEach((staff) => {
     if (staff.isLocked) return;
-    const offT = parseInt(staff.targets.off) || 8;
+    const offT = parseInt(staff.targets.off) || 10;
 
     const getPairsCount = () => {
       let count = 0;
@@ -406,9 +418,12 @@ function tryFillDay(s, d, shiftTypes) {
     大夜: s.shifts.filter((x) => x === "大夜").length,
   };
 
+  // 💡 排序優先級：大夜 -> 小夜 -> 日班，若夜班次數較少者優先排入
   const sortedShifts = [...shiftTypes].sort((a, b) => {
-    if (a === "日") return -1;
-    if (b === "日") return 1;
+    if (a === "大夜" && b !== "大夜") return -1;
+    if (a === "小夜" && b === "日") return -1;
+    if (b === "大夜" && a !== "大夜") return 1;
+    if (b === "小夜" && a === "日") return 1;
     return counts[a] - counts[b];
   });
 
@@ -441,7 +456,8 @@ function tryFillDay(s, d, shiftTypes) {
 function fillStrictTargets() {
   window.staffData.forEach((s) => {
     if (s.isLocked) return;
-    ["日", "小夜", "大夜"].forEach((tKeyNative) => {
+    // 💡 目標天數填充順序同樣改為大夜、小夜優先
+    ["大夜", "小夜", "日"].forEach((tKeyNative) => {
       const tKey =
         tKeyNative === "日"
           ? "day"
@@ -473,33 +489,64 @@ function enforceMinimumWorkStreak() {
       if (
         (s.shifts[d] === "待定" || s.shifts[d] === "休") &&
         getStreak(s, d) > 0 &&
-        getStreak(s, d) < 4
+        getStreak(s, d) < 3 // 💡 寬限為：少於 3 天才觸發後端修復補班
       ) {
-        if (!s.manualEdits[d]) tryFillDay(s, d, ["日", "小夜", "大夜"]);
+        if (!s.manualEdits[d]) tryFillDay(s, d, ["大夜", "小夜", "日"]);
       }
     }
   });
 }
 
 /**
- * 補齊上班天數 (填補剩餘人力)
+ * 補齊上班天數 (白班設0者為夜班絕對優先，其餘人力通通導入白班，精準控休 10 天)
  */
 function fillUnderworked() {
   window.staffData.forEach((s) => {
     if (s.isLocked) return;
-    const targetWork = window.currentMonthDays - (parseInt(s.targets.off) || 8);
+
+    // 💡 核心天條：一個月基本盤固定休 10 天，其餘天數必須上好上滿
+    const FIXED_OFF_DAYS = 10;
+    const targetWork = window.currentMonthDays - FIXED_OFF_DAYS;
+
     let retry = 0;
 
+    // 💡 階段 1：常規夜班限額控人。只有在夜班還沒補滿每日基本需求時，才允許用夜班補同仁的上班天數
     while (retry < 20) {
       let curWork = s.shifts.filter((x) => x !== "休" && x !== "待定").length;
       if (curWork >= targetWork) break;
       let filled = false;
+
       for (let d = 0; d < window.currentMonthDays; d++) {
         if (curWork >= targetWork) break;
         if (s.shifts[d] === "待定" && !s.manualEdits[d]) {
-          if (tryFillDay(s, d, ["日"])) {
-            curWork++;
-            filled = true;
+          const type = isWeekendDay(
+            window.currentYear,
+            window.currentMonth,
+            d + 1
+          )
+            ? "weekend"
+            : "weekday";
+
+          // 檢查當天大夜、小夜是否已經達到基本需求
+          const currentFilledNight = window.staffData.filter(
+            (staff) => staff.shifts[d] === "大夜"
+          ).length;
+          const currentFilledEvening = window.staffData.filter(
+            (staff) => staff.shifts[d] === "小夜"
+          ).length;
+
+          let allowedShifts = [];
+          if (currentFilledNight < window.dailyMins[type]["大夜"])
+            allowedShifts.push("大夜");
+          if (currentFilledEvening < window.dailyMins[type]["小夜"])
+            allowedShifts.push("小夜");
+
+          // 夜班有缺人才塞夜班，避免夜班無故人力過剩
+          if (allowedShifts.length > 0) {
+            if (tryFillDay(s, d, allowedShifts)) {
+              curWork++;
+              filled = true;
+            }
           }
         }
       }
@@ -507,34 +554,56 @@ function fillUnderworked() {
       retry++;
     }
 
-    let curWorkFinal = s.shifts.filter(
-      (x) => x !== "休" && x !== "待定"
-    ).length;
-    if (curWorkFinal < targetWork) {
+    // 💡 階段 2：針對「白班設定為 0 的夜班專職人員」進行破例特殊處理
+    // 如果她們的天數在階段 1 結束後還是不夠（因為夜班坑滿了），此處允許她們「溢出」塞入夜班，絕對不灌白班！
+    if (s._manualLimit.day && parseInt(s.targets.day) === 0) {
       for (let d = 0; d < window.currentMonthDays; d++) {
-        if (curWorkFinal >= targetWork) break;
+        let curWorkNightSpecial = s.shifts.filter(
+          (x) => x !== "休" && x !== "待定"
+        ).length;
+        if (curWorkNightSpecial >= targetWork) break; // 天數夠 10 天假了就收手
+
         if (s.shifts[d] === "待定" && !s.manualEdits[d]) {
-          if (tryFillDay(s, d, ["小夜", "大夜"])) {
-            curWorkFinal++;
+          // 只要符合基本安全天條（禁連6、大小不接日、大不接小），無視夜班限額，依序強灌大夜或小夜
+          if (tryFillDay(s, d, ["大夜", "小夜"])) {
+            // tryFillDay 內部有 manualLimit 阻斷，但因為她們沒限制夜班上限，所以能成功塞入
           }
         }
       }
     }
 
-    for (let d = 0; d < window.currentMonthDays; d++)
+    // 💡 階段 3：普通彈性人力蓄水池。其餘人員只要上班天數還沒點滿，剩下的格子通通強制塞「日班」
+    for (let d = 0; d < window.currentMonthDays; d++) {
+      let curWorkFinal = s.shifts.filter(
+        (x) => x !== "休" && x !== "待定"
+      ).length;
+      if (curWorkFinal >= targetWork) break; // 天數夠了就收手
+
+      if (s.shifts[d] === "待定" && !s.manualEdits[d]) {
+        // 💡 這裡加上雙重保險：如果手動限制白班為 0，絕對不准灌日班
+        if (s._manualLimit.day && parseInt(s.targets.day) === 0) continue;
+
+        // 只要符合勞基法禁連6、花班銜接等安全天條，無視日班需求上限，直接塞日班
+        if (
+          checkTotalStreak(s, d, "日") <= 5 &&
+          isAllowed(getShift(s, d - 1), "日")
+        ) {
+          s.shifts[d] = "日";
+        }
+      }
+    }
+
+    // 💡 階段 4：最後安全收尾。萬一有極端連班衝突，最後還剩餘待定，才轉為休假
+    for (let d = 0; d < window.currentMonthDays; d++) {
       if (s.shifts[d] === "待定") s.shifts[d] = "休";
+    }
   });
 }
-
 // --- 全域互動與對接 ExcelUtils 的橋樑函式 ---
 
-/**
- * 轉接調用獨立出來的 Excel 工具
- */
 window.exportExcel = () => {
   ExcelUtils.exportExcel();
 };
-
 window.importExcel = () => {
   ExcelUtils.importExcel();
 };
@@ -557,16 +626,13 @@ window.clearSchedule = () => {
 
 window.toggleLock = (index) => {
   if (!window.staffData || !window.staffData[index]) return;
-
   const staff = window.staffData[index];
   staff.isLocked = !staff.isLocked;
-
   if (staff.isLocked) {
     staff.manualEdits.fill(true);
   } else {
     staff.manualEdits.fill(false);
   }
-
   renderTable();
   saveScheduleData(
     window.currentYear,

@@ -9,7 +9,7 @@
     <!-- Library -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
     <!-- Style -->
     <link
@@ -20,6 +20,32 @@
   </head>
   <body class="p-4 bg-slate-50">
     <div class="max-w-[1600px] mx-auto space-y-3">
+      <!-- 🌟 新增：分頁切換與管理列 🌟 -->
+      <div
+        class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-sm"
+      >
+        <div
+          id="location-tabs"
+          class="flex gap-1 overflow-x-auto w-full sm:w-auto"
+        >
+          <!-- 分頁標籤會由 JavaScript 動態渲染出來 -->
+        </div>
+        <div class="flex gap-1 shrink-0 w-full sm:w-auto justify-end">
+          <button
+            onclick="window.addNewLocation()"
+            class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded transition-colors"
+          >
+            ＋新增地點
+          </button>
+          <button
+            onclick="window.deleteCurrentLocation()"
+            class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded transition-colors"
+          >
+            🗑️ 刪除地點
+          </button>
+        </div>
+      </div>
+      <!-- 🌟 新增結束 🌟 -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div class="lg:col-span-3 main-card">
           <div class="flex flex-col gap-2">
@@ -108,7 +134,12 @@
         <div
           class="lg:col-span-5 main-card bg-indigo-50 border-indigo-100 flex flex-col justify-center"
         >
-          <h3 class="text-sm font-bold text-indigo-800 mb-1">月目標達成率</h3>
+          <h3
+            id="schedule-title"
+            class="text-sm font-bold text-indigo-800 mb-1"
+          >
+            月目標達成率
+          </h3>
           <div id="total-stats-container" class="flex gap-2 w-full"></div>
         </div>
 

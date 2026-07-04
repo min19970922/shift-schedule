@@ -79,7 +79,13 @@ function renderDailyMinsInputs() {
       dailyMins[type][shift] = parseInt(e.target.value) || 0;
       updateDashboard();
       renderTable();
-      saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+      // 確保明確傳遞最新的 window 變數
+      saveScheduleData(
+        window.currentYear,
+        window.currentMonth,
+        window.staffData,
+        window.dailyMins
+      );
     });
   });
 }
@@ -92,8 +98,19 @@ function renderTable() {
   const tableHeadRow = document.getElementById("schedule-head-row");
   if (!tableBody || !tableHeadRow) return;
 
-  currentMonthDays = new Date(currentYear, currentMonth, 0).getDate();
+  // 1. 動態更新大標題
+  const titleEl =
+    document.getElementById("schedule-title") || document.querySelector("h2");
+  if (titleEl) {
+    titleEl.innerText = `【${window.currentLocation}】${window.currentYear} 年 ${window.currentMonth} 月份護理班表`;
+  }
 
+  // 2. 🌟 統一更新全域當月天數，刪除下面重複的那行
+  window.currentMonthDays = new Date(
+    window.currentYear,
+    window.currentMonth,
+    0
+  ).getDate();
   let headerHTML = `
     <th class="sticky-col actions rounded-tl-lg bg-gray-100 text-gray-500">操作</th>
     <th class="sticky-col name bg-gray-100 text-left pl-2 text-gray-700">姓名</th>
@@ -158,25 +175,49 @@ window.moveStaff = (index, direction) => {
     staffData[index],
   ];
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.updateStaffName = (index, val) => {
   staffData[index].name = val;
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.updateTarget = (index, field, val) => {
   staffData[index].targets[field] = val;
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.toggleLock = (index) => {
   staffData[index].isLocked = !staffData[index].isLocked;
   if (staffData[index].isLocked) staffData[index].manualEdits.fill(true);
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.handleRestEdit = (input, index) => {
@@ -192,7 +233,13 @@ window.handleRestEdit = (input, index) => {
     }
   });
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.toggleShift = (el, staffIndex, dayIndex) => {
@@ -203,7 +250,13 @@ window.toggleShift = (el, staffIndex, dayIndex) => {
     cycles[(cycles.indexOf(current) + 1) % cycles.length];
   staffData[staffIndex].manualEdits[dayIndex] = true;
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.togglePrevShift = (el, staffIndex, prevIndex) => {
@@ -212,14 +265,26 @@ window.togglePrevShift = (el, staffIndex, prevIndex) => {
   staffData[staffIndex].prevShifts[prevIndex] =
     cycles[(cycles.indexOf(current) + 1) % cycles.length];
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 window.removeStaff = (index) => {
   if (confirm("確定刪除此人員？")) {
     staffData.splice(index, 1);
     renderTable();
-    saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+    // 確保明確傳遞最新的 window 變數
+    saveScheduleData(
+      window.currentYear,
+      window.currentMonth,
+      window.staffData,
+      window.dailyMins
+    );
   }
 };
 
@@ -240,7 +305,13 @@ window.addStaff = () => {
     isLocked: false,
   });
   renderTable();
-  saveScheduleData(currentYear, currentMonth, staffData, dailyMins);
+  // 確保明確傳遞最新的 window 變數
+  saveScheduleData(
+    window.currentYear,
+    window.currentMonth,
+    window.staffData,
+    window.dailyMins
+  );
 };
 
 function generateStaffRowHTML(
