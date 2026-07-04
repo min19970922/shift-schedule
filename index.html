@@ -167,8 +167,10 @@
     <script src="js/excelUtils.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/logic.js"></script>
+    <!-- 💡 優先載入 main.js 以建立多地點環境變數與分頁控制項 -->
     <script src="js/main.js"></script>
+    <!-- 💡 再載入負責渲染和計算的 logic 與 ui -->
+    <script src="js/logic.js"></script>
+    <script src="js/ui.js"></script>
   </body>
 </html>
